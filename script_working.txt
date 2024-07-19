@@ -1,0 +1,98 @@
+document.addEventListener('DOMContentLoaded', function () {
+    const executeButton = document.getElementById('executeButton');
+    const sparqlQuery = document.getElementById('sparqlQuery');
+    const queryResults = document.getElementById('queryResults');
+    const map = L.map('map').setView([60.83123055942906, 10.70941456944504], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    executeButton.addEventListener('click', function () {
+        const query = sparqlQuery.value.trim();
+
+        // Make AJAX request to Flask server
+        fetch('/execute-sparql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query: query })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Query results:', data);
+
+                // Clear previous results
+                queryResults.innerHTML = '';
+                map.eachLayer((layer) => {
+                    if (!!layer.toGeoJSON) {
+                        map.removeLayer(layer);
+                    }
+                });
+
+                // Check for error in the data
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Display results on the webpage
+                if (data && data.results && data.results.bindings && data.results.bindings.length > 0) {
+                    let html = '<h2>Query Results</h2>';
+                    html += '<table class="table table-striped">';
+                    html += '<thead><tr>';
+
+                    // Dynamically generate table headers based on the first result object
+                    Object.keys(data.results.bindings[0]).forEach(key => {
+                        html += `<th>${key}</th>`;
+                    });
+
+                    html += '</tr></thead><tbody>';
+
+                    // Loop through each result and generate table rows
+                    data.results.bindings.forEach(binding => {
+                        html += '<tr>';
+                        Object.keys(binding).forEach(key => {
+                            html += `<td>${binding[key].value}</td>`;
+                        });
+                        html += '</tr>';
+
+                        // Extract coordinates from WKT and add geometries to the map
+                        const wkt = binding['wkt'] ? binding['wkt'].value : null;
+                        if (wkt) {
+                            try {
+                                console.log(`Original WKT: ${wkt}`);  // Log the original WKT string
+                                const wicket = new Wkt.Wkt();
+                                wicket.read(wkt);
+                                const obj = wicket.toObject(map.defaults);
+                                console.log('Parsed Object:', obj);  // Log the parsed object
+
+                                if (obj instanceof L.Marker) {
+                                    obj.bindPopup(`<b>ID:</b> ${binding['id'].value}<br><b>Coordinates:</b> ${wkt}`);
+                                }
+                                map.addLayer(obj);
+                            } catch (e) {
+                                console.error('Error parsing WKT:', e);
+                            }
+                        } else {
+                            console.warn('No WKT found for binding:', binding);
+                        }
+                    });
+
+                    html += '</tbody></table>';
+                    queryResults.innerHTML = html;
+                } else {
+                    queryResults.innerHTML = '<p>No results found.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error executing SPARQL query:', error);
+                queryResults.innerHTML = `<p>Error fetching results. Please try again. ${error.message}</p>`;
+            });
+    });
+});

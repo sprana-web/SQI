@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SPARQL Query Interface</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+
+<body>
+    <div class="container-fluid mt-0">
+        <div class="row no-gutters">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h1 class="text-center">SPARQL Query Interface</h1>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="sparqlQuery">Enter SPARQL Query:</label>
+                            <textarea class="form-control" id="sparqlQuery" rows="10">
+PREFIX uom: <http://www.opengis.net/def/uom/OGC/1.0/>
+PREFIX : <http://www.missionmjøsa.org/test_project/>
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
+
+SELECT ?id ?wkt
+
+WHERE {
+
+# Define the lake and its geometry
+
+?lake a :lake ; :hasName "Mjøsa" ; geo:defaultGeometry ?lakeGeom.
+?lakeGeom geo:asWKT ?wkt1 .
+
+# Define the lake buffer zone of 20 m
+
+BIND(geof:buffer(?wkt1, 20, uom:metre) AS ?buff)
+
+# Define the buildings and their geometries
+
+?building a :building ; :hasID ?id ; geo:defaultGeometry ?buildingGeom .
+?buildingGeom geo:asWKT ?wkt .
+
+# Filter properties intersect the buffer zone of a specified distance (e.g., 20 meters) from the lake's shoreline
+
+FILTER(geof:sfIntersects(?wkt, ?buff))
+
+}
+                            </textarea>
+                        </div>
+                        <div class="text-center">
+                            <button class="btn btn-primary" id="executeButton">Execute Query</button>
+                        </div>
+                        <hr>
+                        <div id="queryResults">
+                            <!-- Query results will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div id="map-container">
+                    <div id="map">
+                        <!-- Leaflet map will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/wicket/wicket.js"></script>
+    <script src="https://unpkg.com/wicket/wicket-leaflet.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
